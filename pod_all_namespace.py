@@ -1,3 +1,7 @@
+'''
+ip와 함께 모든 네임스페이스의 파드 리스트 출력하는 코드
+'''
+
 from kubernetes import client, config
 
 # Configs can be set in Configuration class directly or using helper utility
