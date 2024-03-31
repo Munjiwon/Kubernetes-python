@@ -1,5 +1,6 @@
 '''
 쿠버네티스 클러스터에서 nginx Deployment를 생성하는 예제
+딕셔너리를 사용하여 생성
 '''
 
 from kubernetes import client, config, utils
