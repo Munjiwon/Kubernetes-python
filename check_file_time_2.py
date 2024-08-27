@@ -3,8 +3,19 @@ import sys
 from datetime import datetime, timedelta
 
 class LastUseTime():
-    def __init__(self, filepath):
-        self.file = filepath
+    def __init__(self, type):
+        self.filepath = self.loadfile(type)
+        self.compareTime()
+
+    def loadfile(self,type):
+        # 파일 경로
+        if type == "history":
+            return os.path.expanduser("~/.bash_history")
+        elif type == "touch":
+            return os.path.expanduser("~/.profiling/.touch.dat")
+        else:
+            print("command: python3 check_file_time.py <history or touch>")
+            sys.exit(1)
 
     def nowTime(self):
         # 현재 시스템은 utc기준
@@ -12,7 +23,7 @@ class LastUseTime():
         return now
 
     def lastTime(self):
-        last = os.path.getmtime(self.file)
+        last = os.path.getmtime(self.filepath)
         return last
 
     def checkTimestamp(self, time):
@@ -58,14 +69,4 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("command: python3 check_file_time.py <history or touch>")
         sys.exit(1)
-    # 파일 경로
-    if sys.argv[1] == "history":
-        touch_file = os.path.expanduser("~/.bash_history")
-    elif sys.argv[1] == "touch":
-        touch_file = os.path.expanduser("~/.profiling/.touch.dat")
-    else :
-        print("command: python3 check_file_time.py <history or touch>")
-        sys.exit(1)
-
-    lt = LastUseTime(touch_file)
-    lt.compareTime()
+    lt = LastUseTime(sys.argv[1])
