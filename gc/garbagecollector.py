@@ -1,6 +1,6 @@
 from kubernetes import client, config
 from kubernetes.stream import stream
-from history.checkHistory import CheckHistory
+from checkHistory import CheckHistory
 
 class GarbageCollector():
     def __init__(self, namespace='default', container=None, isDev=False):
@@ -10,27 +10,31 @@ class GarbageCollector():
         self.container = container
         self.devMode = isDev
         self.exclude = ["ssh-wldnjs269", "swlabssh"]
-        self.ver_test = ["ssh-test", "ssh-stutest"]
-
-        self.listPods()
 
     def listPods(self):
         if self.devMode is True:
             self.namespace = 'swlabpods-gc'
             list_pods = self.v1.list_namespaced_pod(self.namespace)
+            if not list_pods.items:
+                print(f"No resources found in {self.namespace} namespace.")
+                return
+
             for pod in list_pods.items:
-                print(pod.metadata)
+                print(pod.metadata.name)
                 self.checkStatus(pod)
         else:
             list_pods = self.v1.list_namespaced_pod(self.namespace)
+            if not list_pods.items:
+                print(f"No resources found in {self.namespace} namespace.")
+                return
             for pod in list_pods.items:
                 if pod.metadata.name not in self.exclude[0] and not pod.metadata.name.startswith(self.exclude[1]):
                     print(pod.metadata.name)
                     self.checkStatus(pod)
+
     def execTest(self, pod):
-        #exec
+        #exec test
         command = ["ls", "-al", ".bash_history"]
-        #bash history 확인?
         exec_commmand = stream.stream(self.v1.connect_get_namespaced_pod_exec,
                                       name=pod.name,
                                       namespace=self.namespace,
@@ -50,8 +54,6 @@ class GarbageCollector():
     def deletePod(self, pod):
         pod_name = pod.metadata.name
         self.v1.delete_namespaced_pod(pod_name, self.namespace)
-
-
 
 if __name__ == "__main__":
     #네임스페이스 값을 비워두면 'default'로 지정
