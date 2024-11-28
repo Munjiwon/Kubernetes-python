@@ -1,25 +1,7 @@
 from kubernetes import client, config
 from kubernetes.stream import stream
-from checkHistory import CheckHistory
-
-
-class Pod():
-    def __init__(self, pod):
-        self.pod = pod
-        self.pod_name = pod.metadata.name
-        pass
-
-    def getHistory(self):
-        # 히스토리를 들고오도록 만듫고, manage에서 비교결과값 가져오도록 수정
-        pass
-
-        ch = CheckHistory(self.v1, self.pod, self.namespace)
-        return ch.getResult()
-
-    def getProcess(self):
-        # /proc/[pid]/stat 값을 가져오거나 ps 명령어를 활용
-        pass
-
+from pod import Pod
+import time
 
 class GarbageCollector():
     def __init__(self, namespace='default', container=None, isDev=False):
@@ -28,34 +10,73 @@ class GarbageCollector():
         self.namespace = namespace
         self.container = container
         self.devMode = isDev
-        self.exclude = ["ssh-wldnjs269", "swlabssh"]
-        self.ver_test = ["ssh-test", "ssh-stutest"]
-        self.podlist = []
+        self.exclude = ["ssh-wldnjs269", "ssh-marsberry", "swlabssh"]
+        self.podlist = {}
+        self.intervalTime = 600
+        self.count = 0
 
     def manage(self):
         if self.devMode is True:
             self.namespace = 'swlabpods-gc'
-            self.podlist = self.listPods()
+            self.listPods()
         else:
-            self.podlist = self.listPods()
-        for p in self.podlist:
-            pass
+            self.listPods()
+
+        for p_name, p_obj in self.podlist.items():
+            print(p_name)
+            p_obj.getResultHistory()
+
+            p_obj.insertProcessData()
+            # p.getResultProcess()
+            
+    def logging(self):
+        if self.devMode is True:
+            self.namespace = 'swlabpods-gc'
+        while True:
+            print("Update Pod List...")
+            self.listPods()
+            print('-'*10+f"Start to Check Process Data {self.count} times"+'-'*10)
+            for p_name, p_obj in self.podlist.items():
+                print(p_name)
+                p_obj.insertProcessData()
+                p_obj.saveDataToCSV()
+            print("Clear!!")
+            self.count+=1
+            time.sleep(self.intervalTime)
 
     def listPods(self):
         pods = self.v1.list_namespaced_pod(self.namespace).items
-        filtered_pods = [
+        if not pods:
+            print(f"No resources found in {self.namespace} namespace.")
+            self.podlist = {}
+            return
+        #제외할 pod 필터링
+        filtering_pods = [
             pod for pod in pods
             if not any(
                 pod.metadata.name == name or pod.metadata.name.startswith(name)
                 for name in self.exclude
             )
         ]
-        return filtered_pods
+        new_podlist = {}
+        for p in filtering_pods:
+            pod_name = p.metadata.name
+            if pod_name in self.podlist:
+                #기존 Pod객체 재사용
+                new_podlist[pod_name] = self.podlist[pod_name]
+            else:
+                new_podlist[pod_name] = Pod(self.v1, p)
+
+        removed_pod = set(self.podlist.keys()) - set(new_podlist.keys())
+        # 제거된 pod 목록을 출력할뿐 지워도 무관
+        for rm_p in removed_pod:
+            print(f"Pod removed: {rm_p}")
+        # 새로운 목록으로 변경
+        self.podlist = new_podlist
 
     def execTest(self, pod):
-        # exec
+        #exec test
         command = ["ls", "-al", ".bash_history"]
-        # bash history 확인?
         exec_commmand = stream.stream(self.v1.connect_get_namespaced_pod_exec,
                                       name=pod.name,
                                       namespace=self.namespace,
@@ -65,7 +86,7 @@ class GarbageCollector():
 
     def checkStatus(self, pod):
         pass
-        # true = 사용, false = idle
+        #true = 사용, false = idle
         # if not result:
         #     print(f"Not used for more than 7 days.\nDelete pod {pod.metadata.name} now.\n" + "-" * 50)
         #     self.deletePod(pod)
@@ -76,8 +97,8 @@ class GarbageCollector():
         pod_name = pod.metadata.name
         self.v1.delete_namespaced_pod(pod_name, self.namespace)
 
-
 if __name__ == "__main__":
-    # 네임스페이스 값을 비워두면 'default'로 지정
-    gc = GarbageCollector(namespace='swlabpods', isDev=True)
-    gc.manage()
+    #네임스페이스 값을 비워두면 'default'로 지정
+    gc = GarbageCollector(namespace='swlabpods', isDev=False)
+    # gc.manage()
+    gc.logging()
