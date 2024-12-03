@@ -22,6 +22,9 @@ class Pod():
         self.check_history_result = ch.run()
         print(self.check_history_result)
 
+    def resetProcessList(self):
+        self.processes = []
+
     def getResultProcess(self):
         #/proc/[pid]/stat 값을 가져오거나 ps 명령어를 활용
         # cp = CheckProcess(self.api, self.pod)
@@ -31,6 +34,8 @@ class Pod():
         pass
 
     def insertProcessData(self):
+        self.resetProcessList()
+
         cp = CheckProcess(self.api, self.pod)
         process_data = cp.getProcStat().splitlines()
         for line in process_data:
