@@ -1,6 +1,8 @@
 from process import Process, Mode_State, Policy_State
 from checkHistory import CheckHistory
 from checkProcess import CheckProcess
+from processDB import save_to_database
+
 from datetime import datetime
 import os
 
@@ -22,9 +24,6 @@ class Pod():
         self.check_history_result = ch.run()
         print(self.check_history_result)
 
-    def resetProcessList(self):
-        self.processes = []
-
     def getResultProcess(self):
         #/proc/[pid]/stat 값을 가져오거나 ps 명령어를 활용
         # cp = CheckProcess(self.api, self.pod)
@@ -33,17 +32,32 @@ class Pod():
         # return cpResult
         pass
 
+    def resetProcessList(self):
+        self.processes = []
+
     def insertProcessData(self):
         self.resetProcessList()
 
         cp = CheckProcess(self.api, self.pod)
-        process_data = cp.getProcStat().splitlines()
-        for line in process_data:
+        process_data = cp.getProcStat()
+        # 명령어의 결과값이 None일 경우 건너뛰도록
+        if process_data is None:
+            print(f"Skipping Pod '{self.pod.metadata.name}': Failed to retrieve process data.")
+            return
+
+        for line in process_data.splitlines():
             fields = line.split()
+            if len(fields) < 2:  # 최소 2개의 필드가 있어야 함
+                continue
+
             p = Process()
 
             # Map fields to Process attributes
-            p.pid = int(fields[0])
+            try:
+                p.pid = int(fields[0])
+            except ValueError:
+                print(f"Skipping invalid PID in line: {line}")
+                continue
             p.comm = fields[1].strip('()')
             p.state = Mode_State[fields[2]].value
             p.ppid = int(fields[3])
@@ -99,7 +113,6 @@ class Pod():
             self.processes.append(p)
 
         # self.printProcList()
-        self.saveDataToCSV()
 
     def printProcList(self):
         print('-'*50)
@@ -157,3 +170,67 @@ class Pod():
                 ]
                 file.write(",".join(field_values) + "\n")
             file.write("\n")
+
+    def saveDataToDB(self):
+        # 현재 Pod의 프로세스 데이터를 데이터베이스에 저장
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        processes = []
+
+        for process in self.processes:
+            processes.append({
+                "timestamp": timestamp,
+                "pid": process.pid,
+                "comm": process.comm,
+                "state": process.state,
+                "ppid": process.ppid,
+                "pgrp": process.pgrp,
+                "session": process.session,
+                "tty_nr": process.tty_nr,
+                "tpgid": process.tpgid,
+                "flags": process.flags,
+                "minflt": process.minflt,
+                "cminflt": process.cminflt,
+                "majflt": process.majflt,
+                "cmajflt": process.cmajflt,
+                "utime": process.utime,
+                "stime": process.stime,
+                "cutime": process.cutime,
+                "cstime": process.cstime,
+                "priority": process.priority,
+                "nice": process.nice,
+                "num_threads": process.num_threads,
+                "itrealvalue": process.itrealvalue,
+                "starttime": process.starttime,
+                "vsize": process.vsize,
+                "rss": process.rss,
+                "rsslim": process.rsslim,
+                "startcode": process.startcode,
+                "endcode": process.endcode,
+                "startstack": process.startstack,
+                "kstkesp": process.kstkesp,
+                "kstkeip": process.kstkeip,
+                "signal": process.signal,
+                "blocked": process.blocked,
+                "sigignore": process.sigignore,
+                "sigcatch": process.sigcatch,
+                "wchan": process.wchan,
+                "nswap": process.nswap,
+                "cnswap": process.cnswap,
+                "exit_signal": process.exit_signal,
+                "processor": process.processor,
+                "rt_priority": process.rt_priority,
+                "policy": process.policy,
+                "delayacct_blkio_ticks": process.delayacct_blkio_ticks,
+                "guest_time": process.guest_time,
+                "cguest_time": process.cguest_time,
+                "start_data": process.start_data,
+                "end_data": process.end_data,
+                "start_brk": process.start_brk,
+                "arg_start": process.arg_start,
+                "arg_end": process.arg_end,
+                "env_start": process.env_start,
+                "env_end": process.env_end,
+                "exit_code": process.exit_code
+            })
+
+        save_to_database(self.pod_name, processes)
