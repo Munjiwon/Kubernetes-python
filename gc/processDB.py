@@ -72,6 +72,16 @@ def initialize_database():
             exit_code INTEGER
         )
         """)
+        # Bash history 정보를 저장할 새로운 테이블 생성
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bash_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 각 기록을 고유하게 식별
+            pod_name TEXT,  
+            last_modified TEXT,  -- bash_history의 마지막 수정 시간
+            timestamp TEXT DEFAULT CURRENT_TIMESTAMP  -- 데이터 저장된 시간
+        )
+        """)
+
         conn.commit()
     except sqlite3.OperationalError as e:
         logging.error(f"SQLite OperationalError: {e}")
@@ -130,3 +140,23 @@ def save_to_database(pod_name, processes, max_retries=5, retry_delay=5):
         time.sleep(retry_delay)  # 일정 시간 대기 후 재시도
 
     logging.error(f"Failed to insert data after {max_retries} retries.")
+
+def save_bash_history(pod_name, last_modified):
+    # Bash history의 마지막 수정 시간을 DB에 저장
+    try:
+        conn = sqlite3.connect("process_data.db")
+        cursor = conn.cursor()
+
+        cursor.execute("""
+        INSERT INTO bash_history (pod_name, last_modified)
+        VALUES (?, ?)
+        """, (pod_name, last_modified))
+
+        conn.commit()
+    except sqlite3.OperationalError as e:
+        logging.error(f"SQLite OperationalError: {e}")
+    except sqlite3.Error as e:
+        logging.error(f"SQLite Error: {e}")
+    finally:
+        if conn:
+            conn.close()
