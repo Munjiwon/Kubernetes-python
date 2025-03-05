@@ -45,6 +45,7 @@ class GarbageCollector():
             for p_name, p_obj in self.podlist.items():
                 print(p_name)
                 p_obj.insertProcessData()
+                p_obj.getResultHistory()
                 # save logging data
                 p_obj.saveDataToCSV()
                 p_obj.saveDataToDB()
